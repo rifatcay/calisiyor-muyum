@@ -1,0 +1,19 @@
+body.ogr { background: var(--bg); }
+#obar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px; padding: 10px 14px; padding-top: calc(10px + env(safe-area-inset-top)); color: #fff; background: linear-gradient(120deg, #3a2f9e, #6a3bb0 60%, #c2448e); }
+#obar img { width: 34px; height: 34px; border-radius: 9px; }
+#obar div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#obar b { font-size: 15px; }
+#obar span#oSub { font-size: 12px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#oSync { font-size: 12px; opacity: .9; white-space: nowrap; }
+body.ogr #main { max-width: 1100px; margin: 0 auto; padding: 14px 14px 80px; }
+.login { max-width: 420px; margin: 24px auto; }
+.login h1 { font-size: 22px; margin: 0 0 4px; }
+.login .tabs { margin: 12px 0 16px; display: flex; }
+.login .tabs button { flex: 1; }
+.login .btn { width: 100%; padding: 13px; font-size: 16px; }
+.login input { font-size: 17px; padding: 12px 14px; }
+.login .hint { font-size: 13px; color: var(--muted); }
+.ogr .tk-top .tk-ph { display: none; }
+.ogr .tk-top { grid-template-columns: 1fr; }
+.omenu { display: flex; flex-direction: column; gap: 8px; }
+@media (max-width: 860px) { body.ogr #main { padding: 10px 8px 80px; } }
