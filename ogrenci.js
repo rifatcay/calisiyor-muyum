@@ -7,7 +7,7 @@ const RENKLER = [['#4b3fc4', '#8b5cf6'], ['#d0458f', '#f08a5d'], ['#1f8f8a', '#3
 let db = { weeks: {}, students: {}, classes: {} };
 const ui = {}, ACT = {}, PAGES = {};
 let route = { page: 'takip', arg: null };
-const now = () => Date.now();
+const now = () => Date.now() + (window.Ogr ? Ogr.off : 0); // sunucu saatine göre
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -34,9 +34,9 @@ function render() {
 function go() { render(); window.scrollTo(0, 0); }
 function softRender() { const a = document.activeElement; if (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && $('#main').contains(a)) return; if (!$('#modal').hidden) return; render(); }
 
-const Ogr = {
+var Ogr; Ogr = {
   AUTH: 'https://identitytoolkit.googleapis.com/v1/', TOKEN: 'https://securetoken.googleapis.com/v1/token',
-  cfg: null, sess: null, no: '', info: null, token: null, tokenExp: 0, known: {}, es: [], pushT: null, busy: false, again: false, st: '', tab: 'giris',
+  off: 0, cfg: null, sess: null, no: '', info: null, token: null, tokenExp: 0, known: {}, es: [], pushT: null, busy: false, again: false, st: '', tab: 'giris',
   boot() {
     try { const t = JSON.parse(localStorage.getItem('rct_test') || 'null'); if (t) { this.AUTH = t.auth; this.TOKEN = t.token; } } catch (e) { }
     const h = new URLSearchParams(location.hash.slice(1));
@@ -52,6 +52,7 @@ const Ogr = {
     window.tkSaved = () => this.schedule();
     window.addEventListener('online', () => { if (this.no) { this.flush(); this.listen(); } });
     document.addEventListener('visibilitychange', () => { if (!document.hidden && this.no) { this.pull().catch(() => { }); } });
+    this.off = +localStorage.getItem('rct_off') || 0;
     if (!this.cfg) { $('#main').innerHTML = `<div class="card login"><h1>Bağlantı eksik</h1><p>Bu sayfayı öğretmeninizin verdiği <b>QR kod</b> ya da <b>bağlantı</b> ile açın.</p></div>`; return; }
     if (this.sess && this.sess.rt) this.start(); else this.loginPage();
   },
@@ -176,6 +177,8 @@ const Ogr = {
     const u = +x.u || 0; this.known['t' + wk] = Math.max(this.known['t' + wk] || 0, u);
     const id = 'me|' + wk, loc = db.weeks[id];
     let p; try { p = JSON.parse(x.j); } catch (e) { return false; }
+    const st = +x.s || 0; if (st) { p.ts = Object.fromEntries(Object.entries(p.ts || {}).map(([k, v]) => [k, Math.min(+v || 0, st)])); }
+    if (loc && loc.ts && st) { loc.ts = Object.fromEntries(Object.entries(loc.ts).map(([k, v]) => [k, Math.min(+v || 0, Math.max(st, now()))])); }
     if (!loc) { db.weeks[id] = Object.assign({}, p, { id, sid: 'me', wk, ua: u, ogr: {}, updatedAt: u }); return true; }
     const m = tkMerge(loc, p); if (!m.changed && !m.localNewer) return false;
     db.weeks[id] = Object.assign(m.rec, { id, sid: 'me', wk, ogr: loc.ogr || {}, ua: m.localNewer ? now() : Math.max(loc.ua || 0, u), updatedAt: now() });
@@ -211,10 +214,10 @@ const Ogr = {
   async flush() {
     if (!this.no) return; if (this.busy) { this.again = true; return; }
     const up = {};
-    live('weeks').forEach(w => { const ua = w.ua || 0; if (ua > (this.known['t' + w.wk] || 0)) up[w.wk] = { u: ua, j: JSON.stringify(this.strip(w)) }; });
+    live('weeks').forEach(w => { const ua = w.ua || 0; if (ua > (this.known['t' + w.wk] || 0)) up[w.wk] = { u: ua, j: JSON.stringify(this.strip(w)), w: this.sess.uid, s: { '.sv': 'timestamp' } }; });
     if (!Object.keys(up).length) { this.setSync('✓ kaydedildi'); return; }
     this.busy = true;
-    try { await this.req('t/' + this.no, 'PATCH', up); Object.entries(up).forEach(([wk, x]) => { this.known['t' + wk] = Math.max(this.known['t' + wk] || 0, x.u); }); this.cache(); this.setSync('✓ kaydedildi'); }
+    try { const res = await this.req('t/' + this.no, 'PATCH', up); const sv = Object.values(res || {}).map(x => +x.s).filter(Boolean)[0]; if (sv) { this.off = sv - Date.now(); try { localStorage.setItem('rct_off', this.off); } catch (e) { } } Object.entries(up).forEach(([wk, x]) => { this.known['t' + wk] = Math.max(this.known['t' + wk] || 0, x.u); }); this.cache(); this.setSync('✓ kaydedildi'); }
     finally { this.busy = false; if (this.again) { this.again = false; this.schedule(); } }
   },
   setSync(t) { this.st = t; $('#oSync').textContent = t; },

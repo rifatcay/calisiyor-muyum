@@ -76,6 +76,24 @@ function tkMerge(loc, inc) {
   });
   return { rec: out, localNewer, changed };
 }
+/* Sunucu tarafı kilit (öğretmen programında): öğrenci bir günü, o günden en fazla TK_GERI gün sonrasına kadar değiştirebilir.
+   Daha geç (Firebase sunucu saatiyle) yazılmış değişiklikler geri alınır. Haftaya ait genel bölümler (hedefler, denemeler…) pazara göre. */
+function tkDeadline(wk, g) { const d = tkDay(wk, g == null ? 6 : g); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + TK_GERI + 1); return d.getTime(); }
+function tkEnforce(loc, out, st) {
+  let rev = false; const t = Math.max(now(), st + 1); const wk = out.wk || loc.wk;
+  new Set([...tkKeys(loc), ...tkKeys(out)]).forEach(k => {
+    const lv = tkGetK(loc, k), ov = tkGetK(out, k);
+    if (JSON.stringify(lv) === JSON.stringify(ov)) return;
+    if (k === 'kutu') {
+      const a = Object.assign({}, lv || {}), b = Object.assign({}, ov || {}); let ch = false;
+      for (let g = 0; g < 7; g++) if (String(a[g] ?? '') !== String(b[g] ?? '') && st > tkDeadline(wk, g)) { if (a[g] == null) delete b[g]; else b[g] = a[g]; ch = true; }
+      if (ch) { out.kutu = b; out.ts[k] = t; rev = true; } return;
+    }
+    const m = k.match(/^(plan|soru)\.(\d)$/);
+    if (st > tkDeadline(wk, m ? +m[2] : null)) { tkSetK(out, k, lv === undefined ? undefined : JSON.parse(JSON.stringify(lv))); out.ts[k] = t; rev = true; }
+  });
+  return rev;
+}
 const TK_OGR = !!window.TK_OGR; // öğrencinin telefonundaki sayfa
 function tkSet(o, path, v) {
   const ps = path.split('.'); let x = o;
@@ -180,7 +198,7 @@ function tkStudentBody(s) {
 /* Öğrenci sayfasında kilit: öğrenci bugünü ve en fazla 2 gün öncesini doldurabilir; daha eski günler ve bitmiş haftalar yalnız görüntülenir.
    (Öğretmenin programında kilit yoktur.) */
 const TK_GERI = 2;
-function tkCutoff() { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - TK_GERI); return tkIso(d); }
+function tkCutoff() { const d = new Date(now()); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - TK_GERI); return tkIso(d); }
 function tkDayLocked(wk, g) { return TK_OGR && tkIso(tkDay(wk, g)) < tkCutoff(); }
 function tkWeekLocked(wk) { return TK_OGR && tkIso(tkDay(wk, 6)) < tkCutoff(); }
 function tkLockDom() {
