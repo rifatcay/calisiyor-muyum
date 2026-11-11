@@ -160,6 +160,8 @@ function tkOgrPage() {
 }
 function tkStudentBody(s) {
   const t = ui.tk; let h = '';
+  if (TK_OGR && tkWeekLocked(t.wk)) h += `<div class="note tk-lock">🔒 Bu hafta kapandı; sadece görüntüleyebilirsin.</div>`;
+  else if (TK_OGR && tkDayLocked(t.wk, 0)) h += `<div class="note tk-lock">🔒 Bugünü ve en fazla ${TK_GERI} gün öncesini doldurabilirsin. Daha önceki günler kilitli.</div>`;
   const w = tkCur(), c = tkCalc(w), saved = !!get('weeks', w.id);
   h += `<div class="tk-top card"><div class="tk-ph">${photoHTML(s)}</div><div class="tk-who"><b>${esc(s.name)}</b><span class="muted">${esc((get('classes', s.cid) || {}).name)} · No ${esc(s.no)}${saved ? '' : ' · <span class="chip">bu hafta için henüz kayıt yok</span>'}${window.Bulut && Bulut.on() && (get('classes', s.cid) || {}).online ? (Bulut.claimed(s.no) ? ` · <span class="chip g">📱 telefondan dolduruyor${Bulut.lastSeen[s.no] ? ' · son veri: ' + ago(Bulut.lastSeen[s.no]) : ''}</span>` : ' · <span class="chip">📱 henüz kayıt olmadı</span>') : ''}</span>
       <div class="tk-meta"><label>Hedef sınav<select data-tk="exam">${Object.keys(TK_SINAV).map(k => `<option${w.exam === k ? ' selected' : ''}>${k}</option>`).join('')}</select></label>
@@ -175,7 +177,22 @@ function tkStudentBody(s) {
   h += ({ plan: tkPlanTab, soru: tkSoruTab, ozet: tkOzetTab, deg: tkDegTab, gecmis: tkGecmisTab }[t.tab] || tkPlanTab)(w, c, s);
   return h;
 }
-PAGES.takip.after = () => { };
+/* Öğrenci sayfasında kilit: öğrenci bugünü ve en fazla 2 gün öncesini doldurabilir; daha eski günler ve bitmiş haftalar yalnız görüntülenir.
+   (Öğretmenin programında kilit yoktur.) */
+const TK_GERI = 2;
+function tkCutoff() { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - TK_GERI); return tkIso(d); }
+function tkDayLocked(wk, g) { return TK_OGR && tkIso(tkDay(wk, g)) < tkCutoff(); }
+function tkWeekLocked(wk) { return TK_OGR && tkIso(tkDay(wk, 6)) < tkCutoff(); }
+function tkLockDom() {
+  if (!TK_OGR) return; const wk = ui.tk.wk, wl = tkWeekLocked(wk);
+  const dayOf = el => { const m = (el.dataset.tk || '').match(/^(plan|soru)\.(\d)\./); return m ? +m[2] : (el.dataset.g != null && ['tkSt', 'tkAdd', 'tkBox'].includes(el.dataset.act) ? +el.dataset.g : null); };
+  $$('#main [data-tk], #main [data-act^="tk"]').forEach(el => {
+    if (['tkTab', 'tkWk', 'tkOpenWk'].includes(el.dataset.act)) return;
+    const g = dayOf(el); const lock = g != null ? tkDayLocked(wk, g) : wl;
+    if (lock) { el.disabled = true; el.classList.add('locked'); if (el.dataset.act === 'tkAdd' || el.dataset.act === 'tkAddList' || el.dataset.act === 'tkCopyPlan' || el.dataset.act === 'tkDel') el.style.display = 'none'; }
+  });
+}
+PAGES.takip.after = () => tkLockDom();
 function tkKpi(l, v, col) { return `<div class="stat" style="background:linear-gradient(135deg,${col[0]},${col[1]})"><b>${v}</b><span>${l}</span></div>`; }
 const tkIn = (path, v, cls, extra) => `<input type="text" class="tkin ${cls || ''}" data-tk="${path}" value="${esc(v == null ? '' : v)}" ${extra || ''}>`;
 const tkNum = (path, v, extra) => `<input type="text" inputmode="decimal" class="tkin n" data-tk="${path}" value="${esc(v == null ? '' : v)}" ${extra || ''}>`;
@@ -190,7 +207,7 @@ function tkPlanTab(w, c) {
     const n = tkMinRows(w, 'plan', g), rows = tkRows(w, 'plan', g);
     for (let i = 0; i < n; i++) {
       const r = rows[i] || {}; const p = `plan.${g}.${i}`;
-      h += `<tr class="${i === 0 ? 'dstart' : ''} ${g % 2 ? 'odd' : ''}">${i === 0 ? `<td rowspan="${n}" class="day"><b>${TK_GUN[g]}</b><span>${tkDM(tkDay(w.wk, g))}</span><span>Toplam: <b data-c="pr${g}">${c['pr' + g]}</b> / <span data-c="pp${g}">${c['pp' + g]}</span> dk</span><button class="lnk" data-act="tkAdd" data-p="plan" data-g="${g}">＋ satır</button></td>` : ''}
+      h += `<tr class="${i === 0 ? 'dstart' : ''} ${g % 2 ? 'odd' : ''}">${i === 0 ? `<td rowspan="${n}" class="day"><b>${TK_GUN[g]}</b><span>${tkDM(tkDay(w.wk, g))}</span><span>Toplam: <b data-c="pr${g}">${c['pr' + g]}</b> / <span data-c="pp${g}">${c['pp' + g]}</span> dk</span>${tkDayLocked(w.wk, g) ? '<span class="lk">🔒 kapandı</span>' : ''}<button class="lnk" data-act="tkAdd" data-p="plan" data-g="${g}">＋ satır</button></td>` : ''}
         <td>${tkIn(p + '.ders', r.ders, '', 'list="tkDers"')}</td><td>${tkIn(p + '.konu', r.konu, 'wide')}</td><td>${tkIn(p + '.kay', r.kay)}</td><td>${tkNum(p + '.p', r.p)}</td><td>${tkNum(p + '.r', r.r)}</td><td>${tkNum(p + '.h', r.h)}</td>
         <td class="c st">${Object.entries(TK_ST).map(([k, l]) => `<button class="${r.st === k ? 'on ' + k : ''}" data-act="tkSt" data-g="${g}" data-i="${i}" data-v="${k}">${l}</button>`).join('')}</td></tr>`;
     }
@@ -205,7 +222,7 @@ function tkSoruTab(w, c) {
     const n = tkMinRows(w, 'soru', g), rows = tkRows(w, 'soru', g);
     for (let i = 0; i < n; i++) {
       const r = rows[i] || {}; const p = `soru.${g}.${i}`;
-      h += `<tr class="${i === 0 ? 'dstart' : ''} ${g % 2 ? 'odd' : ''}">${i === 0 ? `<td rowspan="${n + 1}" class="day"><b>${TK_GUN[g]}</b><span>${tkDM(tkDay(w.wk, g))}</span><button class="lnk" data-act="tkAdd" data-p="soru" data-g="${g}">＋ satır</button></td>` : ''}
+      h += `<tr class="${i === 0 ? 'dstart' : ''} ${g % 2 ? 'odd' : ''}">${i === 0 ? `<td rowspan="${n + 1}" class="day"><b>${TK_GUN[g]}</b><span>${tkDM(tkDay(w.wk, g))}</span>${tkDayLocked(w.wk, g) ? '<span class="lk">🔒 kapandı</span>' : ''}<button class="lnk" data-act="tkAdd" data-p="soru" data-g="${g}">＋ satır</button></td>` : ''}
         <td>${tkIn(p + '.ders', r.ders, '', 'list="tkDers"')}</td><td>${tkIn(p + '.konu', r.konu, 'wide')}</td><td>${tkIn(p + '.kay', r.kay)}</td>
         <td>${tkNum(p + '.q', r.q, 'placeholder="D+Y+B"')}</td><td>${tkNum(p + '.d', r.d)}</td><td>${tkNum(p + '.y', r.y)}</td><td>${tkNum(p + '.b', r.b)}</td><td class="c calc" data-c="sn${g}_${i}">${c[`sn${g}_${i}`] || ''}</td><td>${tkNum(p + '.t', r.t)}</td></tr>`;
     }

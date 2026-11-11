@@ -386,3 +386,12 @@ table.tp-t tfoot td { background: #1f3a5f; color: #fff; font-weight: 700; }
 @media (max-width: 600px) { .tk-boxes { --bh: 17px; grid-template-columns: 30px repeat(7, 1fr); gap: 3px; } .tk-dn { font-size: 10px; } .tk-ax span { font-size: 9.5px; } .tk-sum { font-size: 10.5px; } }
 .tk-dn i { font-style: normal; } .tk-dn i.s { display: none; }
 @media (max-width: 600px) { .tk-dn i.l { display: none; } .tk-dn i.s { display: inline; } .tk-dn { font-size: 11.5px; } }
+
+/* öğrenci sayfası kilidi */
+.tk-lock { margin-bottom: 12px; }
+.locked { cursor: not-allowed !important; }
+.tkin.locked:hover { border-color: transparent !important; background: transparent !important; }
+td.st button.locked, .seg button.locked { opacity: .55; }
+.tk-bx.locked { cursor: not-allowed; } .tk-bx.locked:hover { background: inherit; }
+.tk-bx.locked:not(.on):not(.au) { background: repeating-linear-gradient(45deg, #fff, #fff 4px, #f3f1f9 4px, #f3f1f9 8px); }
+table.tk td.day span.lk { color: var(--bad); font-weight: 600; }
