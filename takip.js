@@ -110,7 +110,7 @@ function tkCalc(w) {
       const k = (x.ders || '').trim(); if (k) { const o = ders[k] || (ders[k] = { q: 0, d: 0, y: 0, b: 0, t: 0 }); o.q += qq; o.d += n0(x.d); o.y += n0(x.y); o.b += n0(x.b); o.t += n0(x.t); }
     });
     Object.assign(c, { ['pp' + g]: p || '', ['pr' + g]: r || '', ['sq' + g]: q || '', ['sd' + g]: d || '', ['sy' + g]: y || '', ['sb' + g]: b || '', ['st' + g]: t || '', ['snt' + g]: d || y ? fmt1(d - y / nd) : '' });
-    c.dayMin[g] = r || t; P += p; G += r; H += h; Q += q; D += d; Y += y; B += b; T += t;
+    const kt = n0((w.kutu || {})[g]); c['kt' + g] = kt; c.dayMin[g] = kt ? kt * 30 : (r || t); P += p; G += r; H += h; Q += q; D += d; Y += y; B += b; T += t;
   }
   Object.assign(c, { P, G, H, Q, D, Y, B, T, NET: D - Y / nd, uyum: P ? Math.round(G / P * 100) : null });
   c.PP = P || ''; c.GG = G || ''; c.UY = c.uyum == null ? '' : '%' + c.uyum; c.QQ = Q || ''; c.DD = D || ''; c.YY = Y || ''; c.BB = B || ''; c.TT = T || ''; c.NN = D || Y ? fmt1(c.NET) : '';
@@ -215,6 +215,21 @@ function tkSoruTab(w, c) {
     <p class="muted" style="font-size:13px;margin:8px 6px 2px">İpucu: Yanlış ve boş bıraktığı soruları 4. sekmedeki “Eksik konular” listesine ekleyin.</p></div>`;
   return h;
 }
+/* Ekranda: her gün için yarım saatlik kutular; dokununca o kutuya kadar işaretlenir (w.kutu[gün] = kutu sayısı). */
+function tkBoxes(w, c) {
+  const auto = g => c['kt' + g] ? 0 : Math.floor(((c.dayMin[g] || 0) / 30) + 1e-6);
+  const mx = Math.max(...[0, 1, 2, 3, 4, 5, 6].map(g => Math.max(c['kt' + g], auto(g))));
+  const rows = Math.min(32, Math.max(16, mx + (mx >= 15 ? 2 : 0) + (mx % 2)));
+  const hd = Math.round(n0(w.hSaat) / 7 * 2);
+  let h = `<div class="tk-boxes" style="--rows:${rows}"><div class="tk-ax">${Array.from({ length: rows / 2 + 1 }, (_, i) => `<span style="bottom:calc(${i} * 2 * var(--bh))">${rows / 2 - (rows / 2 - i)} sa</span>`).join('')}</div>`;
+  for (let g = 0; g < 7; g++) {
+    const kt = c['kt' + g], au = auto(g), v = kt || au;
+    h += `<div class="tk-day"><b class="tk-sum ${kt ? '' : 'auto'}">${v ? fmt1(v / 2) + ' sa' : ''}</b><div class="tk-col">`;
+    for (let k = rows - 1; k >= 0; k--) h += `<button class="tk-bx${k < kt ? ' on' : !kt && k < au ? ' au' : ''}${hd && k === hd - 1 ? ' goal' : ''}${k % 2 ? ' hr' : ''}" data-act="tkBox" data-g="${g}" data-k="${k}" title="${TK_GUN[g]} · ${fmt1((k + 1) / 2)} saat">${k < kt ? '✓' : ''}</button>`;
+    h += `</div><span class="tk-dn"><i class="l">${TK_GUN[g]}</i><i class="s">${['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'][g]}</i></span><span class="tk-dd">${tkDM(tkDay(w.wk, g))}</span></div>`;
+  }
+  return h + `</div>`;
+}
 function tkChart(w, c, print) {
   const W = 700, Hh = 240, L = 40, Bm = 26, top = 10, maxH = Math.max(8, Math.ceil(Math.max(...c.dayMin) / 60));
   const y = v => top + (Hh - top - Bm) * (1 - v / maxH), bw = (W - L - 10) / 7;
@@ -237,7 +252,8 @@ function tkOzetTab(w, c) {
       ${c.ders.map((x, i) => `<tr><td><b>${esc(x.k)}</b></td><td style="width:90px">${tkNum('hd.' + x.k, (w.hd || {})[x.k])}</td><td class="c">${x.q || ''}</td><td class="c">${x.d || ''}</td><td class="c">${x.y || ''}</td><td class="c">${x.b || ''}</td><td class="c"><b>${x.q ? fmt1(x.net) : ''}</b></td><td class="c">${x.bas == null ? '' : '%' + x.bas}</td><td class="c">${x.saat ? fmt1(x.saat) : ''}</td><td class="c"><b data-c="ul${i}" class="${x.ul === false ? 'neg' : ''}">${c['ul' + i]}</b></td></tr>`).join('')}</tbody>
       <tfoot><tr><td><b>TOPLAM</b></td><td></td><td class="c">${c.QQ}</td><td class="c">${c.DD}</td><td class="c">${c.YY}</td><td class="c">${c.BB}</td><td class="c">${c.NN}</td><td class="c">${c.Q ? '%' + Math.round(c.D / c.Q * 100) : ''}</td><td class="c">${c.T ? fmt1(c.T / 60) : ''}</td><td></td></tr></tfoot></table></div>`;
   }
-  h += `</div><div class="card"><h2>⏱ Günlük çalışma süresi</h2>${tkChart(w, c)}<p class="muted" style="font-size:13px;margin:4px 0 0">Süre “Gerçek (dk)” sütunundan alınır; o gün plan girilmediyse soru takibindeki süre kullanılır. Kırmızı çizgi: haftalık hedef süre ÷ 7.</p></div>`;
+  h += `</div><div class="card"><div class="row" style="margin-bottom:10px"><h2 style="margin:0">⏱ Günlük çalışma süresi</h2><span class="spacer"></span><span class="muted" style="font-size:13px">1 kutu = 30 dk</span></div>${tkBoxes(w, c)}
+    <p class="muted" style="font-size:13px;margin:10px 0 0">Her gün çalıştığın kadar kutuya dokun (✓). Aynı kutuya tekrar dokunursan o kutu boşalır. İşaretlenmeyen günlerde süre plan / soru takibinden açık renkle gösterilir.${n0(w.hSaat) ? ' Kırmızı çizgili kutu: günlük hedef (haftalık hedef süre ÷ 7).' : ''}</p></div>`;
   const cols = (TK_SINAV[w.exam] || TK_SINAV.TYT).cols;
   h += `<div class="card" style="padding:10px"><div class="row" style="padding:4px 6px 10px"><h2 style="margin:0">📝 Bu haftaki deneme sınavları</h2><span class="spacer"></span><button class="btn ghost sm" data-act="tkAddList" data-p="den">＋ Deneme ekle</button></div>
     <div class="tbl-wrap"><table class="tk"><thead><tr><th>Deneme adı / Yayın</th><th class="c">Tarih</th>${cols.map(k => `<th class="c">${esc(k)}</th>`).join('')}<th class="c">Toplam net</th><th class="c">Puan</th><th class="c">Sıralama</th><th></th></tr></thead><tbody>`;
@@ -299,6 +315,7 @@ function tkClassView(ss) {
 
 /* ---------- olaylar ---------- */
 Object.assign(ACT, {
+  tkBox: el => { const g = el.dataset.g, k = +el.dataset.k; tkEdit(w => { const cur = n0((w.kutu || {})[g]); w.kutu = Object.assign({}, w.kutu, { [g]: cur === k + 1 ? k : k + 1 }); }); render(); },
   tkTab: el => { ui.tk.tab = el.dataset.id; render(); },
   tkWk: el => { const d = +el.dataset.d; ui.tk.wk = d ? tkShift(ui.tk.wk, d) : tkMonday(new Date()); render(); },
   tkPick: el => { ui.tk.sid = el.dataset.id; render(); window.scrollTo(0, 0); },

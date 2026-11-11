@@ -367,3 +367,22 @@ table.tp-t tfoot td { background: #1f3a5f; color: #fff; font-weight: 700; }
 .slip div { display: flex; flex-direction: column; gap: 1mm; }
 .slip b { font-size: 10.5pt; }
 .slip small { font-size: 7pt; color: #555; }
+
+/* günlük süre kutuları */
+.tk-boxes { --bh: 20px; display: grid; grid-template-columns: 44px repeat(7, 1fr); gap: 6px; align-items: end; }
+.tk-ax { position: relative; height: calc(var(--rows) * var(--bh)); margin-bottom: 38px; }
+.tk-ax span { position: absolute; right: 4px; transform: translateY(50%); font-size: 11px; color: var(--muted); white-space: nowrap; }
+.tk-day { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.tk-sum { font-size: 12px; color: var(--acc); height: 18px; } .tk-sum.auto { color: #a69fd6; }
+.tk-col { display: flex; flex-direction: column; width: 100%; max-width: 64px; border: 1.5px solid #cfc9ef; border-radius: 8px; overflow: hidden; background: #fff; }
+.tk-bx { height: var(--bh); border: 0; border-top: 1px solid #ece9f7; background: #fff; cursor: pointer; padding: 0; font-size: 11px; font-weight: 700; color: #fff; line-height: 1; }
+.tk-bx:first-child { border-top: 0; }
+.tk-bx.hr { border-top-color: #d9d4f0; }
+.tk-bx:hover { background: #efeafd; }
+.tk-bx.on { background: linear-gradient(90deg, #6b5fe0, #8b5cf6); border-top-color: rgba(255,255,255,.35); }
+.tk-bx.au { background: #e4defc; }
+.tk-bx.goal { box-shadow: inset 0 2px 0 #d2463c; }
+.tk-dn { font-size: 12px; font-weight: 600; margin-top: 6px; } .tk-dd { font-size: 11px; color: var(--muted); }
+@media (max-width: 600px) { .tk-boxes { --bh: 17px; grid-template-columns: 30px repeat(7, 1fr); gap: 3px; } .tk-dn { font-size: 10px; } .tk-ax span { font-size: 9.5px; } .tk-sum { font-size: 10.5px; } }
+.tk-dn i { font-style: normal; } .tk-dn i.s { display: none; }
+@media (max-width: 600px) { .tk-dn i.l { display: none; } .tk-dn i.s { display: inline; } .tk-dn { font-size: 11.5px; } }
