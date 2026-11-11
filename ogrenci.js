@@ -1,4 +1,4 @@
-/* Çalışıyor muyum? — öğrenci sayfası (telefon).
+/* Çalışıyorum — öğrenci sayfası (telefon).
    Öğretmenin RÇ Öğrenci Durum programındaki "Öğrenci Takip" formunu öğrencinin doldurmasını sağlar.
    Ortak form kodu takip.js'tedir; bu dosya giriş, eşitleme ve takip.js'in kullandığı küçük yardımcıları sağlar. */
 'use strict';
@@ -53,9 +53,50 @@ var Ogr; Ogr = {
     window.addEventListener('online', () => { if (this.no) { this.flush(); this.listen(); } });
     document.addEventListener('visibilitychange', () => { if (!document.hidden && this.no) { this.pull().catch(() => { }); } });
     this.off = +localStorage.getItem('rct_off') || 0;
-    if (!this.cfg) { $('#main').innerHTML = `<div class="card login"><h1>Bağlantı eksik</h1><p>Bu sayfayı öğretmeninizin verdiği <b>QR kod</b> ya da <b>bağlantı</b> ile açın.</p></div>`; return; }
+    window.rcBack = () => { if (!$('#modal').hidden) { closeModal(); return true; } if ($('#cam')) { this.stopCam(); this.setupPage(); return true; } return false; };
+    if (!this.cfg) { this.setupPage(); return; }
     if (this.sess && this.sess.rt) this.start(); else this.loginPage();
   },
+  /* ---------- ilk kurulum: öğretmenin QR'ı / bağlantısı ---------- */
+  setupPage(msg) {
+    $('#oMenu').hidden = true;
+    $('#main').innerHTML = `<div class="card login"><h1>Hoş geldin 👋</h1><p class="muted" style="margin-top:0">Başlamak için öğretmeninin verdiği <b>QR kodu</b> okut.</p>
+      ${msg ? `<p class="note">${esc(msg)}</p>` : ''}
+      <button class="btn grad" id="sQR">📷 QR kodu okut</button>
+      <p class="hint" style="margin-top:16px">QR okutamıyorsan öğretmeninin verdiği bağlantıyı buraya yapıştır:</p>
+      <textarea id="sLnk" placeholder="https://rifatcay.github.io/calisiyor-muyum/#k=…" style="min-height:70px"></textarea>
+      <button class="btn ghost" id="sOk" style="margin-top:8px">Bağlantıyla devam et</button></div>`;
+    $('#sQR').onclick = () => this.scan();
+    $('#sOk').onclick = () => { if (!this.useLink($('#sLnk').value)) this.setupPage('Bu bağlantı geçerli değil. Öğretmeninin verdiği bağlantının tamamını yapıştır.'); };
+  },
+  useLink(txt) {
+    const m = String(txt || '').match(/#(.*)$/); if (!m) return false;
+    const h = new URLSearchParams(m[1]); if (!h.get('k') || !h.get('d')) return false;
+    this.cfg = { k: h.get('k'), d: h.get('d').replace(/\/+$/, '') }; localStorage.setItem('rct_cfg', JSON.stringify(this.cfg));
+    toast('Bağlandı ✓'); this.tab = 'ilk'; this.loginPage(); return true;
+  },
+  stopCam() { if (this.cam) { this.cam.getTracks().forEach(t => t.stop()); this.cam = null; } cancelAnimationFrame(this.raf); },
+  async scan() {
+    $('#main').innerHTML = `<div class="card login"><h1>QR kodu okut</h1><p class="muted" style="margin-top:0">Öğretmeninin verdiği kâğıttaki ya da tahtadaki QR kodu kameraya göster.</p>
+      <video id="cam" playsinline muted style="width:100%;border-radius:12px;background:#000"></video><canvas id="camC" hidden></canvas>
+      <button class="btn ghost" id="sBack" style="margin-top:10px">Vazgeç</button></div>`;
+    $('#sBack').onclick = () => { this.stopCam(); this.setupPage(); };
+    try { this.cam = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }); }
+    catch (e) { this.setupPage('Kamera açılamadı. Kamera iznini ver ya da bağlantıyı yapıştır.'); return; }
+    const v = $('#cam'), c = $('#camC'), ctx = c.getContext('2d', { willReadFrequently: true }); v.srcObject = this.cam; await v.play();
+    const tick = () => {
+      if (!this.cam) return;
+      if (v.readyState >= 2) {
+        const w = v.videoWidth, hh = v.videoHeight, sc = Math.min(1, 640 / Math.max(w, hh)); c.width = w * sc; c.height = hh * sc;
+        ctx.drawImage(v, 0, 0, c.width, c.height); const img = ctx.getImageData(0, 0, c.width, c.height);
+        const code = window.jsQR && jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+        if (code && code.data) { if (this.useLinkQuiet(code.data)) { this.stopCam(); return; } }
+      }
+      this.raf = requestAnimationFrame(tick);
+    };
+    tick();
+  },
+  useLinkQuiet(txt) { if (!/#.*k=.*d=|#.*d=.*k=/.test(txt)) return false; return this.useLink(txt); },
   /* ---------- Firebase ---------- */
   errText(j, fb) {
     const m = (j && j.error && (j.error.message || j.error)) || fb || 'bilinmeyen hata';
@@ -225,6 +266,7 @@ var Ogr; Ogr = {
   menu() {
     openModal(`<h2>${esc((this.info || {}).ad || '')}</h2><p class="muted" style="margin-top:0">${esc((this.info || {}).sinif || '')} · No ${esc(this.no)}${(this.info || {}).ogretmen ? ' · Öğretmen: ' + esc(this.info.ogretmen) : ''}</p>
       <div class="omenu"><button class="btn ghost" id="mPass">🔑 Şifremi değiştir</button><button class="btn ghost" id="mSync">⟳ Şimdi eşitle</button><button class="btn danger" id="mOut">Çıkış yap</button></div>
+      ${window.RCApp ? '' : (/Android/i.test(navigator.userAgent) ? `<p class="hint" style="margin-top:14px">📲 <a href="indir/calisiyorum.apk">Android uygulamasını indir</a></p>` : '')}
       <div class="actions"><button class="btn" id="mClose">Kapat</button></div>`);
     $('#mClose').onclick = closeModal;
     $('#mSync').onclick = () => { closeModal(); this.pull().then(() => toast('Eşitlendi ✓')).catch(e => toast(e.message)); };
