@@ -40,8 +40,9 @@ var Ogr; Ogr = {
   boot() {
     try { const t = JSON.parse(localStorage.getItem('rct_test') || 'null'); if (t) { this.AUTH = t.auth; this.TOKEN = t.token; } } catch (e) { }
     const h = new URLSearchParams(location.hash.slice(1));
-    if (h.get('k') && h.get('d')) { this.cfg = { k: h.get('k'), d: h.get('d').replace(/\/+$/, '') }; localStorage.setItem('rct_cfg', JSON.stringify(this.cfg)); history.replaceState(null, '', location.pathname + location.search); }
+    if (h.get('k') && h.get('d')) { this.cfg = { k: h.get('k'), d: h.get('d').replace(/\/+$/, '') }; localStorage.setItem('rct_cfg', JSON.stringify(this.cfg)); if (!this.ios) history.replaceState(null, '', location.pathname + location.search); }
     else { try { this.cfg = JSON.parse(localStorage.getItem('rct_cfg') || 'null'); } catch (e) { } }
+    this.iosPrep();
     try { this.sess = JSON.parse(localStorage.getItem('rct_sess') || 'null'); } catch (e) { }
     $('#oMenu').onclick = () => this.menu();
     document.addEventListener('click', e => {
@@ -56,6 +57,20 @@ var Ogr; Ogr = {
     window.rcBack = () => { if (!$('#modal').hidden) { closeModal(); return true; } if ($('#cam')) { this.stopCam(); this.setupPage(); return true; } return false; };
     if (!this.cfg) { this.setupPage(); return; }
     if (this.sess && this.sess.rt) this.start(); else this.loginPage();
+  },
+  /* ---------- iPhone / iPad ---------- */
+  // iPhone'da “Ana Ekrana Ekle” ile eklenen sayfa Safari'den ayrı hafıza kullanır ve açılış adresini o anki adresten alır.
+  // Bu yüzden bağlantı bilgisini adreste (#k=…&d=…) tutarız ve manifest bağlantısını kaldırırız; ana ekran simgesi bilgiyi kendisi taşır.
+  ios: /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
+  standalone: !!(window.navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)),
+  iosPrep() {
+    if (!this.ios) return;
+    const m = document.querySelector('link[rel=manifest]'); if (m) m.remove();
+    if (this.cfg && !/k=/.test(location.hash)) history.replaceState(null, '', location.pathname + '#k=' + encodeURIComponent(this.cfg.k) + '&d=' + encodeURIComponent(this.cfg.d));
+  },
+  iosTip() {
+    if (!this.ios || this.standalone) return '';
+    return `<div class="note" style="margin-bottom:14px">📲 <b>Telefonuna uygulama gibi ekle:</b> Safari'de alttaki <b>Paylaş</b> düğmesine (<span style="font-size:17px">⬆︎</span> kutudan çıkan ok) bas → <b>Ana Ekrana Ekle</b> → <b>Ekle</b>. Sonra ana ekrandaki <b>Çalışıyorum</b> simgesinden aç ve orada giriş yap.</div>`;
   },
   /* ---------- ilk kurulum: öğretmenin QR'ı / bağlantısı ---------- */
   setupPage(msg) {
@@ -72,7 +87,7 @@ var Ogr; Ogr = {
   useLink(txt) {
     const m = String(txt || '').match(/#(.*)$/); if (!m) return false;
     const h = new URLSearchParams(m[1]); if (!h.get('k') || !h.get('d')) return false;
-    this.cfg = { k: h.get('k'), d: h.get('d').replace(/\/+$/, '') }; localStorage.setItem('rct_cfg', JSON.stringify(this.cfg));
+    this.cfg = { k: h.get('k'), d: h.get('d').replace(/\/+$/, '') }; localStorage.setItem('rct_cfg', JSON.stringify(this.cfg)); this.iosPrep();
     toast('Bağlandı ✓'); this.tab = 'ilk'; this.loginPage(); return true;
   },
   stopCam() { if (this.cam) { this.cam.getTracks().forEach(t => t.stop()); this.cam = null; } cancelAnimationFrame(this.raf); },
@@ -141,7 +156,7 @@ var Ogr; Ogr = {
     const ilk = this.tab === 'ilk';
     $('#main').innerHTML = `<div class="card login"><h1>${ilk ? 'İlk giriş' : 'Giriş'}</h1><p class="muted" style="margin:0">Haftalık çalışma planını ve soru takibini buradan doldur; öğretmenin anında görür.</p>
       <div class="tabs"><button class="${ilk ? '' : 'on'}" data-act="oTab" data-id="giris">Giriş</button><button class="${ilk ? 'on' : ''}" data-act="oTab" data-id="ilk">İlk kez giriyorum</button></div>
-      ${msg ? `<p class="note">${esc(msg)}</p>` : ''}
+      ${this.iosTip()}${msg ? `<p class="note">${esc(msg)}</p>` : ''}
       <label class="f"><span>Okul numaran</span><input type="text" id="lNo" inputmode="numeric" autocomplete="username" value="${esc((this.sess || {}).no || '')}"></label>
       ${ilk ? `<label class="f"><span>Sınıf kodu (öğretmeninden)</span><input type="text" id="lKod" inputmode="numeric" autocomplete="off"></label>
         <label class="f"><span>Kendine bir şifre belirle (en az 6 karakter)</span><input type="password" id="lP1" autocomplete="new-password"></label>
