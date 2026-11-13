@@ -1,5 +1,6 @@
 /* Çalışıyorum — öğrenci sayfası (telefon).
-   Öğretmenin RÇ Öğrenci Durum programındaki "Öğrenci Takip" formunu öğrencinin doldurmasını sağlar.
+   Öğretmenin RÇ Öğrenci Durum programındaki "Öğrenci Takip" formunu ya da RÇ Öğrenci Takip programının formunu öğrencinin doldurmasını sağlar.
+   Bağlantıdaki b=rt → RÇ Öğrenci Takip (Firebase dalı /rt, hesaplar t{no}v{n}@rctakip.app); yoksa Öğrenci Durum (/rd).
    Ortak form kodu takip.js'tedir; bu dosya giriş, eşitleme ve takip.js'in kullandığı küçük yardımcıları sağlar. */
 'use strict';
 window.TK_OGR = true;
@@ -40,7 +41,7 @@ var Ogr; Ogr = {
   boot() {
     try { const t = JSON.parse(localStorage.getItem('rct_test') || 'null'); if (t) { this.AUTH = t.auth; this.TOKEN = t.token; } } catch (e) { }
     const h = new URLSearchParams(location.hash.slice(1));
-    if (h.get('k') && h.get('d')) { this.cfg = { k: h.get('k'), d: h.get('d').replace(/\/+$/, '') }; localStorage.setItem('rct_cfg', JSON.stringify(this.cfg)); if (!this.ios) history.replaceState(null, '', location.pathname + location.search); }
+    if (h.get('k') && h.get('d')) { this.setCfg(h);  if (!this.ios) history.replaceState(null, '', location.pathname + location.search); }
     else { try { this.cfg = JSON.parse(localStorage.getItem('rct_cfg') || 'null'); } catch (e) { } }
     this.iosPrep();
     try { this.sess = JSON.parse(localStorage.getItem('rct_sess') || 'null'); } catch (e) { }
@@ -66,7 +67,7 @@ var Ogr; Ogr = {
   iosPrep() {
     if (!this.ios) return;
     const m = document.querySelector('link[rel=manifest]'); if (m) m.remove();
-    if (this.cfg && !/k=/.test(location.hash)) history.replaceState(null, '', location.pathname + '#k=' + encodeURIComponent(this.cfg.k) + '&d=' + encodeURIComponent(this.cfg.d));
+    if (this.cfg && !/k=/.test(location.hash)) history.replaceState(null, '', location.pathname + this.linkHash());
   },
   iosTip() {
     if (!this.ios || this.standalone) return '';
@@ -84,10 +85,18 @@ var Ogr; Ogr = {
     $('#sQR').onclick = () => this.scan();
     $('#sOk').onclick = () => { if (!this.useLink($('#sLnk').value)) this.setupPage('Bu bağlantı geçerli değil. Öğretmeninin verdiği bağlantının tamamını yapıştır.'); };
   },
+  /* bağlantı bilgisi; başka bir programa (dala) geçilirse eski oturum kapanır */
+  setCfg(h) {
+    let old = null; try { old = JSON.parse(localStorage.getItem('rct_cfg') || 'null'); } catch (e) { }
+    this.cfg = { k: h.get('k'), d: h.get('d').replace(/\/+$/, '') }; if (h.get('b') === 'rt') this.cfg.b = 'rt';
+    if (old && (old.d !== this.cfg.d || (old.b || '') !== (this.cfg.b || ''))) { this.sess = null; localStorage.removeItem('rct_sess'); }
+    localStorage.setItem('rct_cfg', JSON.stringify(this.cfg));
+  },
+  linkHash() { return '#k=' + encodeURIComponent(this.cfg.k) + '&d=' + encodeURIComponent(this.cfg.d) + (this.cfg.b ? '&b=' + this.cfg.b : ''); },
   useLink(txt) {
     const m = String(txt || '').match(/#(.*)$/); if (!m) return false;
     const h = new URLSearchParams(m[1]); if (!h.get('k') || !h.get('d')) return false;
-    this.cfg = { k: h.get('k'), d: h.get('d').replace(/\/+$/, '') }; localStorage.setItem('rct_cfg', JSON.stringify(this.cfg)); this.iosPrep();
+    this.setCfg(h); this.iosPrep();
     toast('Bağlandı ✓'); this.tab = 'ilk'; this.loginPage(); return true;
   },
   stopCam() { if (this.cam) { this.cam.getTracks().forEach(t => t.stop()); this.cam = null; } cancelAnimationFrame(this.raf); },
@@ -127,8 +136,8 @@ var Ogr; Ogr = {
     if (!r.ok) throw new Error(this.errText(j, 'Sunucu yanıtı ' + r.status));
     return j;
   },
-  email(no, v) { return 'o' + String(no).replace(/\D/g, '') + 'v' + v + '@rcdurum.app'; },
-  db(p) { return this.cfg.d + '/rd/' + p + '.json'; },
+  email(no, v) { return this.cfg.b === 'rt' ? 't' + String(no).replace(/\D/g, '') + 'v' + v + '@rctakip.app' : 'o' + String(no).replace(/\D/g, '') + 'v' + v + '@rcdurum.app'; },
+  db(p) { return this.cfg.d + '/' + (this.cfg.b === 'rt' ? 'rt' : 'rd') + '/' + p + '.json'; },
   async getV(no) {
     let r; try { r = await fetchTO(this.db('v/' + no), {}, 15000); } catch (e) { throw new Error('İnternete bağlanılamadı.'); }
     const v = r.ok ? await r.json() : null;
@@ -199,7 +208,7 @@ var Ogr; Ogr = {
     this.saveSess(); toast('Hesabın hazır ✓'); await this.start();
   },
   /* ---------- veri ---------- */
-  cacheKey() { return 'rct_db_' + this.no; },
+  cacheKey() { return 'rct_db_' + (this.cfg && this.cfg.b === 'rt' ? 'rt_' : '') + this.no; },
   cache() { try { localStorage.setItem(this.cacheKey(), JSON.stringify({ weeks: db.weeks, info: this.info, known: this.known })); } catch (e) { } },
   setMe() {
     const i = this.info || {};
@@ -300,7 +309,7 @@ var Ogr; Ogr = {
   logout(msg, tab) {
     this.tab = tab || 'giris';
     this.es.forEach(e => { try { e.close(); } catch (x) { } }); this.es = [];
-    const no = this.no; this.no = ''; try { if (no) localStorage.removeItem('rct_db_' + no); } catch (e) { } this.token = null; this.sess = no ? { no } : null; if (this.sess) this.sess.rt = ''; this.saveSess();
+    const no = this.no, ck = this.cacheKey(); this.no = ''; try { if (no) localStorage.removeItem(ck); } catch (e) { } this.token = null; this.sess = no ? { no } : null; if (this.sess) this.sess.rt = ''; this.saveSess();
     db.weeks = {}; this.info = null; this.known = {}; this.loginPage(msg);
   },
 };
